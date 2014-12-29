@@ -8,7 +8,7 @@ import (
 type Reader struct {
 	h         Header
 	r         io.Reader
-	remaining int32
+	remaining uint32
 }
 
 // NewReader wraps an io.Reader with a Reader.
@@ -44,7 +44,7 @@ func (r *Reader) Read() ([]int32, error) {
 	if r.remaining == 0 {
 		return nil, ErrDone
 	}
-	r.remaining -= int32(r.h.FormatHeader.BlockAlign)
+	r.remaining -= uint32(r.h.FormatHeader.BlockAlign)
 
 	// Decode the list of samples
 	if r.h.FormatHeader.BitsPerSample == 8 {
@@ -74,5 +74,5 @@ func (r *Reader) Read() ([]int32, error) {
 
 // Remaining returns the number of samples left to read.
 func (r *Reader) Remaining() int {
-	return int(r.remaining / int32(r.h.FormatHeader.BlockAlign))
+	return int(r.remaining / uint32(r.h.FormatHeader.BlockAlign))
 }

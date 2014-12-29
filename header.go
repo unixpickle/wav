@@ -7,25 +7,25 @@ import (
 
 // ChunkHeader is the generic 64-bit header in WAV files.
 type ChunkHeader struct {
-	ChunkID   int32
-	ChunkSize int32
+	ChunkID   uint32
+	ChunkSize uint32
 }
 
 // FileHeader is the "RIFF" chunk
 type FileHeader struct {
 	ChunkHeader
-	Format int32
+	Format uint32
 }
 
 // FormatHeader is the "fmt" sub-chunk
 type FormatHeader struct {
 	ChunkHeader
-	AudioFormat   int16
-	NumChannels   int16
-	SampleRate    int32
-	ByteRate      int32
-	BlockAlign    int16
-	BitsPerSample int16
+	AudioFormat   uint16
+	NumChannels   uint16
+	SampleRate    uint32
+	ByteRate      uint32
+	BlockAlign    uint16
+	BitsPerSample uint16
 }
 
 // Header is the canonical header for all WAV files
