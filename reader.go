@@ -11,7 +11,7 @@ type Reader struct {
 	remaining int32
 }
 
-// NewReader creates a new stream for reading.
+// NewReader wraps an io.Reader with a Reader.
 func NewReader(r io.Reader) (*Reader, error) {
 	h, err := ReadHeader(r)
 	if err != nil {
@@ -38,10 +38,9 @@ func (r *Reader) Header() Header {
 }
 
 // Read returns a single sample for each channel.
-// The samples are signed 16-bit values but are represented as ints so pecision
-// can be added later on.
+// The samples are signed 32-bit values.
 // If the end of stream is reached, ErrDone will be returned.
-func (r *Reader) Read() ([]int, error) {
+func (r *Reader) Read() ([]int32, error) {
 	if r.remaining == 0 {
 		return nil, ErrDone
 	}
@@ -53,9 +52,9 @@ func (r *Reader) Read() ([]int, error) {
 		if err := binary.Read(r.r, binary.LittleEndian, res); err != nil {
 			return nil, err
 		}
-		realRes := make([]int, len(res))
+		realRes := make([]int32, len(res))
 		for i, x := range res {
-			realRes[i] = (int(x) - 0x80) * 0x100
+			realRes[i] = (int32(x) - 0x80) * 0x1000000
 		}
 		return realRes, nil
 	} else if r.h.FormatHeader.BitsPerSample == 16 {
@@ -63,12 +62,17 @@ func (r *Reader) Read() ([]int, error) {
 		if err := binary.Read(r.r, binary.LittleEndian, res); err != nil {
 			return nil, err
 		}
-		realRes := make([]int, len(res))
+		realRes := make([]int32, len(res))
 		for i, x := range res {
-			realRes[i] = int(x)
+			realRes[i] = int32(x) * 0x10000
 		}
 		return realRes, nil
 	}
 
 	return nil, ErrSampleSize
+}
+
+// Remaining returns the number of samples left to read.
+func (r *Reader) Remaining() int {
+	return int(r.remaining / int32(r.h.FormatHeader.BlockAlign))
 }
