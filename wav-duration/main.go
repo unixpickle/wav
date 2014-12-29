@@ -27,7 +27,6 @@ func ErrMain() error {
 	if err != nil {
 		return err
 	}
-	fmt.Println("header", header)
 	fmt.Println("duration is", header.Duration())
 	return nil
 }

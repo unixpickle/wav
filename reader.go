@@ -5,9 +5,11 @@ import (
 	"io"
 )
 
+type Sample float64
+
 type Reader struct {
-	h         Header
-	r         io.Reader
+	header    Header
+	reader    io.Reader
 	remaining uint32
 }
 
@@ -17,62 +19,49 @@ func NewReader(r io.Reader) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	if h.File.ID != 0x46464952 {
-		return nil, ErrChunkID
-	} else if h.Format.ID != 0x20746d66 {
-		return nil, ErrChunkID
-	}
-	sSize := h.Format.BitsPerSample
-	if sSize != 8 && sSize != 16 {
-		return nil, ErrSampleSize
-	}
-	if h.Format.AudioFormat != 1 {
-		return nil, ErrUnknownFormat
-	}
 	return &Reader{h, r, h.Data.Size}, nil
 }
 
-// Header returns the header for a stream.
+// Header returns the header that a Reader read during NewReader().
 func (r *Reader) Header() Header {
-	return r.h
+	return r.header
 }
 
 // Read returns a single sample for each channel.
-// The samples are signed 32-bit values.
+// The samples are signed values ranging between -1.0 and 1.0.
 // If the end of stream is reached, ErrDone will be returned.
-func (r *Reader) Read() ([]int32, error) {
+func (r *Reader) Read() ([]Sample, error) {
 	if r.remaining == 0 {
 		return nil, ErrDone
 	}
-	r.remaining -= uint32(r.h.Format.BlockSize())
+	h := r.header
+	r.remaining -= uint32(h.Format.BlockSize())
 
 	// Decode the list of samples
-	if r.h.Format.BitsPerSample == 8 {
-		res := make([]uint8, r.h.Format.NumChannels)
-		if err := binary.Read(r.r, binary.LittleEndian, res); err != nil {
+	res := make([]Sample, h.Format.NumChannels)
+	if h.Format.BitsPerSample == 8 {
+		raw := make([]uint8, len(res))
+		if err := binary.Read(r.reader, binary.LittleEndian, raw); err != nil {
 			return nil, err
 		}
-		realRes := make([]int32, len(res))
-		for i, x := range res {
-			realRes[i] = (int32(x) - 0x80) * 0x1000000
+		for i, x := range raw {
+			res[i] = (Sample(x) - 0x80) / 0x80
 		}
-		return realRes, nil
-	} else if r.h.Format.BitsPerSample == 16 {
-		res := make([]int16, r.h.Format.NumChannels)
-		if err := binary.Read(r.r, binary.LittleEndian, res); err != nil {
+	} else if h.Format.BitsPerSample == 16 {
+		raw := make([]int16, len(res))
+		if err := binary.Read(r.reader, binary.LittleEndian, raw); err != nil {
 			return nil, err
 		}
-		realRes := make([]int32, len(res))
-		for i, x := range res {
-			realRes[i] = int32(x) * 0x10000
+		for i, x := range raw {
+			res[i] = Sample(x) / 0x8000
 		}
-		return realRes, nil
+	} else {
+		return nil, ErrSampleSize
 	}
-
-	return nil, ErrSampleSize
+	return res, nil
 }
 
 // Remaining returns the number of samples left to read.
 func (r *Reader) Remaining() int {
-	return int(r.remaining / uint32(r.h.Format.BlockAlign))
+	return int(r.remaining / uint32(r.header.Format.BlockAlign))
 }
