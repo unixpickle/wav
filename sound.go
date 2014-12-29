@@ -6,6 +6,7 @@ import (
 	"os"
 )
 
+// Sound holds a list of PCM samples and a WAV header.
 type Sound struct {
 	header  Header
 	Samples [][]Sample
@@ -55,11 +56,17 @@ func ReadSound(path string) (*Sound, error) {
 }
 
 // Header returns the header for the sound.
+// The header's size data will be modified to fit the sound's sample data.
 func (s *Sound) Header() Header {
 	h := s.header
 	h.Data.Size = uint32(s.header.Format.BlockSize()) * uint32(len(s.Samples))
 	h.File.Size = 36 + s.header.Data.Size
 	return h
+}
+
+// NumChannels returns the number of channels in a sound.
+func (s *Sound) NumChannels() int {
+	return int(s.header.Format.NumChannels)
 }
 
 // SampleRate returns the number of samples per second per channel.
@@ -83,7 +90,7 @@ func (s *Sound) Write(w io.Writer) error {
 				}
 			}
 		}
-	} else {
+	} else if s.header.Format.BitsPerSample == 16 {
 		for _, block := range s.Samples {
 			for _, sample := range block {
 				num := uint16(sample * 0x8000)
@@ -93,6 +100,8 @@ func (s *Sound) Write(w io.Writer) error {
 				}
 			}
 		}
+	} else {
+		return ErrSampleSize
 	}
 	return nil
 }
