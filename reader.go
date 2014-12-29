@@ -17,19 +17,19 @@ func NewReader(r io.Reader) (*Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	if h.FileHeader.ChunkID != 0x46464952 {
+	if h.File.ID != 0x46464952 {
 		return nil, ErrChunkID
-	} else if h.FormatHeader.ChunkID != 0x20746d66 {
+	} else if h.Format.ID != 0x20746d66 {
 		return nil, ErrChunkID
 	}
-	sSize := h.FormatHeader.BitsPerSample
+	sSize := h.Format.BitsPerSample
 	if sSize != 8 && sSize != 16 {
 		return nil, ErrSampleSize
 	}
-	if h.FormatHeader.AudioFormat != 1 {
+	if h.Format.AudioFormat != 1 {
 		return nil, ErrUnknownFormat
 	}
-	return &Reader{h, r, h.DataHeader.ChunkSize}, nil
+	return &Reader{h, r, h.Data.Size}, nil
 }
 
 // Header returns the header for a stream.
@@ -44,11 +44,11 @@ func (r *Reader) Read() ([]int32, error) {
 	if r.remaining == 0 {
 		return nil, ErrDone
 	}
-	r.remaining -= uint32(r.h.FormatHeader.BlockAlign)
+	r.remaining -= uint32(r.h.Format.BlockSize())
 
 	// Decode the list of samples
-	if r.h.FormatHeader.BitsPerSample == 8 {
-		res := make([]uint8, r.h.FormatHeader.NumChannels)
+	if r.h.Format.BitsPerSample == 8 {
+		res := make([]uint8, r.h.Format.NumChannels)
 		if err := binary.Read(r.r, binary.LittleEndian, res); err != nil {
 			return nil, err
 		}
@@ -57,8 +57,8 @@ func (r *Reader) Read() ([]int32, error) {
 			realRes[i] = (int32(x) - 0x80) * 0x1000000
 		}
 		return realRes, nil
-	} else if r.h.FormatHeader.BitsPerSample == 16 {
-		res := make([]int16, r.h.FormatHeader.NumChannels)
+	} else if r.h.Format.BitsPerSample == 16 {
+		res := make([]int16, r.h.Format.NumChannels)
 		if err := binary.Read(r.r, binary.LittleEndian, res); err != nil {
 			return nil, err
 		}
@@ -74,5 +74,5 @@ func (r *Reader) Read() ([]int32, error) {
 
 // Remaining returns the number of samples left to read.
 func (r *Reader) Remaining() int {
-	return int(r.remaining / uint32(r.h.FormatHeader.BlockAlign))
+	return int(r.remaining / uint32(r.h.Format.BlockAlign))
 }

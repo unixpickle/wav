@@ -25,7 +25,7 @@ func ReadSound(path string) (*Sound, error) {
 			return nil, err
 		}
 	}
-	sr := r.Header().FormatHeader.SampleRate
+	sr := r.Header().Format.SampleRate
 	return &Sound{int(sr), samples}, nil
 }
 
