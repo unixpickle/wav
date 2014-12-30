@@ -60,6 +60,38 @@ func Gradient(s Sound, start, end time.Duration) {
 	}
 }
 
+// Overlay overlays a sound over another sound at a certain offset.
+// If the sounds are a different number of channels, only some channels will
+// be overlayed.
+func Overlay(s, o Sound, delay time.Duration) {
+	start := sampleIndex(s, delay)
+	sSize := len(s.Samples())
+	oSize := len(o.Samples())
+	totalSize := sSize
+	if start+oSize > totalSize {
+		totalSize = start + oSize
+	}
+	for i := 0; i < totalSize; i++ {
+		if i >= sSize {
+			zeroes := make([]Sample, s.Channels())
+			s.SetSamples(append(s.Samples(), zeroes))
+		}
+		if i >= start && i < start+oSize {
+			overlaySample := make([]Sample, s.Channels())
+			copy(overlaySample, o.Samples()[i-start])
+			for j, sample := range overlaySample {
+				newVal := s.Samples()[i][j] + sample
+				if newVal < -1.0 {
+					newVal = -1.0
+				} else if newVal > 1.0 {
+					newVal = 1.0
+				}
+				s.Samples()[i][j] = newVal
+			}
+		}
+	}
+}
+
 func diffChannelAppend(s1, s2 Sound) {
 	if s2.Channels() > s1.Channels() {
 		for _, x := range s2.Samples() {
