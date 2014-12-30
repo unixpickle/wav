@@ -11,6 +11,7 @@ import (
 // file.
 type Sound interface {
 	Channels() int
+	Clone() Sound
 	Duration() time.Duration
 	SampleRate() int
 	Samples() [][]Sample
@@ -88,6 +89,15 @@ func (s *wavSound) Channels() int {
 	return int(s.header.Format.NumChannels)
 }
 
+func (s *wavSound) Clone() wavSound {
+	newSamples := make([][]Sample, len(s.samples))
+	for i, x := range s.samples {
+		newSamples[i] = make([]Sample, len(x))
+		copy(newSamples[i], x)
+	}
+	return wavSound{s.header, newSamples}
+}
+
 func (s *wavSound) Duration() time.Duration {
 	return s.Header().Duration()
 }
@@ -116,6 +126,10 @@ type wavSound8 struct {
 	wavSound
 }
 
+func (s *wavSound8) Clone() Sound {
+	return &wavSound8{s.wavSound.Clone()}
+}
+
 func (s *wavSound8) Write(w io.Writer) error {
 	// Write the header
 	if err := binary.Write(w, binary.LittleEndian, s.Header()); err != nil {
@@ -135,6 +149,10 @@ func (s *wavSound8) Write(w io.Writer) error {
 
 type wavSound16 struct {
 	wavSound
+}
+
+func (s *wavSound16) Clone() Sound {
+	return &wavSound16{s.wavSound.Clone()}
 }
 
 func (s *wavSound16) Write(w io.Writer) error {
