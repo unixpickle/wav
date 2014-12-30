@@ -7,61 +7,107 @@ import (
 
 type Sample float64
 
-type Reader struct {
-	header    Header
-	reader    io.Reader
-	remaining uint32
+type Reader interface {
+	// Header returns the reader's WAV header.
+	Header() *Header
+	
+	// Read reads as many as len(out) samples.
+	// The samples are signed values ranging between -1.0 and 1.0.
+	// Channels are packed side-by-side, so for a stereo track it'd be LRLRLR...
+	// If the end of stream is reached, ErrDone will be returned.
+	Read(out []Sample) (int, error)
+	
+	// Remaining returns the number of samples left to read.
+	Remaining() int
 }
 
 // NewReader wraps an io.Reader with a Reader.
-func NewReader(r io.Reader) (*Reader, error) {
+func NewReader(r io.Reader) (Reader, error) {
 	h, err := ReadHeader(r)
 	if err != nil {
 		return nil, err
 	}
-	return &Reader{h, r, h.Data.Size}, nil
+	remaining := int(h.Data.Size / uint32(h.Format.BitsPerSample / 8))
+	if h.Format.BitsPerSample == 8 {
+		return &pcm8Reader{reader{h, r, remaining}}, nil
+	} else if h.Format.BitsPerSample == 16 {
+		return &pcm16Reader{reader{h, r, remaining}}, nil
+	}
+	return nil, ErrSampleSize
 }
 
-// Header returns the header that a Reader read during NewReader().
-func (r *Reader) Header() Header {
+type pcm8Reader struct {
+	reader
+}
+
+func (r pcm8Reader) Read(out []Sample) (int, error) {
+	if r.remaining == 0 {
+		return 0, ErrDone
+	}
+	
+	toRead := len(out)
+	if toRead > r.remaining {
+		toRead = r.remaining
+	}
+
+	// Decode the list of raw samples
+	raw := make([]uint8, toRead)
+	if err := binary.Read(r.input, binary.LittleEndian, raw); err != nil {
+		return 0, err
+	}
+	for i, x := range raw {
+		out[i] = (Sample(x) - 0x80) / 0x80
+	}
+	
+	// Return the amount read and a possible ErrDone error.
+	r.remaining -= toRead
+	if r.remaining == 0 {
+		return toRead, ErrDone
+	}
+	return toRead, nil
+}
+
+type pcm16Reader struct {
+	reader
+}
+
+func (r pcm16Reader) Read(out []Sample) (int, error) {
+	if r.remaining == 0 {
+		return 0, ErrDone
+	}
+	
+	toRead := len(out)
+	if toRead > r.remaining {
+		toRead = r.remaining
+	}
+
+	// Decode the list of raw samples
+	raw := make([]int16, toRead)
+	if err := binary.Read(r.input, binary.LittleEndian, raw); err != nil {
+		return 0, err
+	}
+	for i, x := range raw {
+		out[i] = Sample(x) / 0x8000
+	}
+
+	// Return the amount read and a possible ErrDone error.
+	r.remaining -= toRead
+	if r.remaining == 0 {
+		return toRead, ErrDone
+	}
+	return toRead, nil
+}
+
+type reader struct {
+	header    *Header
+	input     io.Reader
+	remaining int
+}
+
+func (r *reader) Header() *Header {
 	return r.header
 }
 
-// Read returns a single sample for each channel.
-// The samples are signed values ranging between -1.0 and 1.0.
-// If the end of stream is reached, ErrDone will be returned.
-func (r *Reader) Read() ([]Sample, error) {
-	if r.remaining == 0 {
-		return nil, ErrDone
-	}
-	h := r.header
-	r.remaining -= uint32(h.Format.BlockSize())
-
-	// Decode the list of samples
-	res := make([]Sample, h.Format.NumChannels)
-	if h.Format.BitsPerSample == 8 {
-		raw := make([]uint8, len(res))
-		if err := binary.Read(r.reader, binary.LittleEndian, raw); err != nil {
-			return nil, err
-		}
-		for i, x := range raw {
-			res[i] = (Sample(x) - 0x80) / 0x80
-		}
-	} else if h.Format.BitsPerSample == 16 {
-		raw := make([]int16, len(res))
-		if err := binary.Read(r.reader, binary.LittleEndian, raw); err != nil {
-			return nil, err
-		}
-		for i, x := range raw {
-			res[i] = Sample(x) / 0x8000
-		}
-	} else {
-		return nil, ErrSampleSize
-	}
-	return res, nil
-}
-
-// Remaining returns the number of samples left to read.
-func (r *Reader) Remaining() int {
-	return int(r.remaining / uint32(r.header.Format.BlockAlign))
+func (r *reader) Remaining() int {
+	return r.remaining
 }
