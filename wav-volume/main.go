@@ -19,7 +19,7 @@ func ErrMain() error {
 	if len(os.Args) != 4 {
 		return errors.New("Usage: wav-volume <file.wav> <volume> <output.wav>")
 	}
-	s, err := wav.ReadSound(os.Args[1])
+	s, err := wav.ReadSoundFile(os.Args[1])
 	if err != nil {
 		return err
 	}

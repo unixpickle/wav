@@ -25,11 +25,11 @@ func ErrMain() error {
 	if err != nil {
 		return err
 	}
-	s1, err := wav.ReadSound(os.Args[1])
+	s1, err := wav.ReadSoundFile(os.Args[1])
 	if err != nil {
 		return err
 	}
-	s2, err := wav.ReadSound(os.Args[2])
+	s2, err := wav.ReadSoundFile(os.Args[2])
 	if err != nil {
 		return err
 	}

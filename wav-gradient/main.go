@@ -21,7 +21,7 @@ func ErrMain() error {
 		return errors.New("Usage: wav-gradient <file.wav> <start> <end> " +
 			"<output.wav>")
 	}
-	s, err := wav.ReadSound(os.Args[1])
+	s, err := wav.ReadSoundFile(os.Args[1])
 	if err != nil {
 		return err
 	}

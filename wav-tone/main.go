@@ -29,7 +29,7 @@ func ErrMain() error {
 	for i := 0; i < sampleRate*1; i++ {
 		time := float64(i) / float64(sampleRate)
 		value := wav.Sample(math.Sin(time * math.Pi * 2 * float64(freq)))
-		sound.SetSamples(append(sound.Samples(), []wav.Sample{value}))
+		sound.SetSamples(append(sound.Samples(), value))
 	}
 	return wav.WriteFile(sound, os.Args[2])
 }

@@ -136,8 +136,7 @@ func (s *wavSound8) Write(w io.Writer) error {
 	}
 	// Write the actual data
 	for _, sample := range s.Samples() {
-		data := []byte{byte(sample*0x80 + 0x80)}
-		if _, err := w.Write(data); err != nil {
+		if _, err := w.Write([]byte{byte(sample*0x80 + 0x80)}); err != nil {
 			return err
 		}
 	}
@@ -158,9 +157,8 @@ func (s *wavSound16) Write(w io.Writer) error {
 		return err
 	}
 	for _, sample := range s.Samples() {
-		num := uint16(sample * 0x8000)
-		data := []byte{byte(num & 0xff), byte((num >> 8) & 0xff)}
-		if _, err := w.Write(data); err != nil {
+		num := int16(sample * 0x8000)
+		if err := binary.Write(w, binary.LittleEndian, &num); err != nil {
 			return err
 		}
 	}

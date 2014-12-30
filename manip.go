@@ -14,7 +14,7 @@ func Append(dest Sound, sounds ...Sound) {
 		}
 		// Generic conversion algorithm.
 		ratio := float64(dest.SampleRate()) / float64(source.SampleRate())
-		sourceBlocks := len(dest.Samples()) / dest.Channels()
+		sourceBlocks := len(source.Samples()) / source.Channels()
 		destBlocks := int(float64(sourceBlocks) * ratio)
 		mutualChannels := source.Channels()
 		if dest.Channels() < mutualChannels {
@@ -89,7 +89,7 @@ func Overlay(s, o Sound, delay time.Duration) {
 	}
 
 	// Figure out the length of the new sound.
-	start := sampleIndex(s, delay)
+	start := unclippedSampleIndex(s, delay)
 	sSize := len(s.Samples())
 	oSize := len(o.Samples())
 	totalSize := sSize
@@ -103,7 +103,7 @@ func Overlay(s, o Sound, delay time.Duration) {
 			s.SetSamples(append(s.Samples(), 0))
 		}
 		if i >= start && i < start+oSize {
-			sample := s.Samples()[i]
+			sample := o.Samples()[i-start]
 			s.Samples()[i] = clamp(s.Samples()[i] + sample)
 		}
 	}
@@ -127,12 +127,18 @@ func clamp(s Sample) Sample {
 }
 
 func sampleIndex(s Sound, t time.Duration) int {
+	index := unclippedSampleIndex(s, t)
+	if index > len(s.Samples()) {
+		return len(s.Samples())
+	}
+	return index
+}
+
+func unclippedSampleIndex(s Sound, t time.Duration) int {
 	secs := float64(t) / float64(time.Second)
 	index := int(secs * float64(s.SampleRate()*s.Channels()))
 	if index < 0 {
 		return 0
-	} else if index > len(s.Samples()) {
-		return len(s.Samples())
 	}
 	return index
 }
