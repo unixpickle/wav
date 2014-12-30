@@ -9,7 +9,7 @@ import (
 // Sound holds a list of PCM samples and a WAV header.
 type Sound struct {
 	header  Header
-	Samples [][]Sample
+	samples [][]Sample
 }
 
 // NewPCM8Sound creates a new empty Sound with given parameters.
@@ -59,7 +59,8 @@ func ReadSound(path string) (*Sound, error) {
 // The header's size data will be modified to fit the sound's sample data.
 func (s *Sound) Header() Header {
 	h := s.header
-	h.Data.Size = uint32(s.header.Format.BlockSize()) * uint32(len(s.Samples))
+	h.Data.Size = uint32(s.header.Format.BlockSize()) *
+		uint32(len(s.Samples()))
 	h.File.Size = 36 + s.header.Data.Size
 	return h
 }
@@ -69,9 +70,20 @@ func (s *Sound) NumChannels() int {
 	return int(s.header.Format.NumChannels)
 }
 
+// Samples returns an array of arrays.
+// The inner arrays contain a single sample per channel.
+func (s *Sound) Samples() [][]Sample {
+	return s.samples
+}
+
 // SampleRate returns the number of samples per second per channel.
 func (s *Sound) SampleRate() int {
 	return int(s.header.Format.SampleRate)
+}
+
+// SetSamples sets the sample data for the sound
+func (s *Sound) SetSamples(ss [][]Sample) {
+	s.samples = ss
 }
 
 // Write writes a WAV file (including its header) to an io.Writer.
@@ -82,7 +94,7 @@ func (s *Sound) Write(w io.Writer) error {
 	}
 	// Write the actual data
 	if s.header.Format.BitsPerSample == 8 {
-		for _, block := range s.Samples {
+		for _, block := range s.Samples() {
 			for _, sample := range block {
 				data := []byte{byte(sample*0x80 + 0x80)}
 				if _, err := w.Write(data); err != nil {
@@ -91,7 +103,7 @@ func (s *Sound) Write(w io.Writer) error {
 			}
 		}
 	} else if s.header.Format.BitsPerSample == 16 {
-		for _, block := range s.Samples {
+		for _, block := range s.Samples() {
 			for _, sample := range block {
 				num := uint16(sample * 0x8000)
 				data := []byte{byte(num & 0xff), byte((num >> 8) & 0xff)}

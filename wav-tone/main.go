@@ -26,10 +26,10 @@ func ErrMain() error {
 	}
 	sampleRate := 44100
 	sound := wav.NewPCM8Sound(1, sampleRate)
-	for i := 0; i < sampleRate * 1; i++ {
+	for i := 0; i < sampleRate*1; i++ {
 		time := float64(i) / float64(sampleRate)
 		value := wav.Sample(math.Sin(time * math.Pi * 2 * float64(freq)))
-		sound.Samples = append(sound.Samples, []wav.Sample{value})
+		sound.SetSamples(append(sound.Samples(), []wav.Sample{value}))
 	}
 	f, err := os.Create(os.Args[2])
 	if err != nil {
