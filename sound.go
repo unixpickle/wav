@@ -103,7 +103,7 @@ func (s *wavSound) Duration() time.Duration {
 
 func (s *wavSound) Header() *Header {
 	h := s.header
-	h.Data.Size = uint32(s.header.Format.BitsPerSample / 8) *
+	h.Data.Size = uint32(s.header.Format.BitsPerSample/8) *
 		uint32(len(s.Samples()))
 	h.File.Size = 36 + s.header.Data.Size
 	return h

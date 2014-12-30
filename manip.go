@@ -4,20 +4,31 @@ import "time"
 
 // Append appends sounds to a sound.
 // This method adds and removes channels and modifies sample rates as needed.
-func Append(s Sound, sounds ...Sound) {
-	for _, x := range sounds {
-		if s.SampleRate() == x.SampleRate() && s.Channels() == x.Channels() {
+func Append(dest Sound, sounds ...Sound) {
+	for _, source := range sounds {
+		if dest.SampleRate() == source.SampleRate() &&
+			dest.Channels() == source.Channels() {
 			// This is the simple, fast case
-			s.SetSamples(append(s.Samples(), x.Samples()...))
+			dest.SetSamples(append(dest.Samples(), source.Samples()...))
 			continue
 		}
 		// Generic conversion algorithm.
-		ratio := float64(s.SampleRate()) / float64(x.SampleRate())
-		numSamples := int(ratio * float64(len(x.Samples())))
-		for i := 0; i < numSamples; i++ {
-			source := int(float64(i) / ratio)
-			newRes := convPacket(x.Samples()[source], s.Channels())
-			s.SetSamples(append(s.Samples(), newRes))
+		ratio := float64(dest.SampleRate()) / float64(source.SampleRate())
+		sourceBlocks := len(dest.Samples()) / dest.Channels()
+		destBlocks := int(float64(sourceBlocks) * ratio)
+		mutualChannels := source.Channels()
+		if dest.Channels() < mutualChannels {
+			mutualChannels = dest.Channels()
+		}
+		for i := 0; i < destBlocks; i++ {
+			sourceIdx := source.Channels() * int(float64(i)/ratio)
+			newSamples := source.Samples()[sourceIdx : sourceIdx+mutualChannels]
+			dest.SetSamples(append(dest.Samples(), newSamples...))
+			// Duplicate the first source channel for the remaining channels in
+			// the destination.
+			for i := mutualChannels; i < dest.Channels(); i++ {
+				dest.SetSamples(append(dest.Samples(), newSamples[0]))
+			}
 		}
 	}
 }
@@ -54,13 +65,13 @@ func Gradient(s Sound, start, end time.Duration) {
 	if !upwards {
 		startIdx, endIdx = endIdx, startIdx
 	}
-	for i := startIdx; i < endIdx; i++ {
-		value := float64(i-startIdx) / float64(endIdx-startIdx)
+	for i := startIdx; i < endIdx; i += s.Channels() {
+		value := Sample(i-startIdx) / Sample(endIdx-startIdx)
 		if !upwards {
 			value = 1.0 - value
 		}
-		for j, sample := range s.Samples()[i] {
-			s.Samples()[i][j] = sample * Sample(value)
+		for j := 0; j < s.Channels(); j++ {
+			s.Samples()[i+j] *= value
 		}
 	}
 }
@@ -89,23 +100,20 @@ func Overlay(s, o Sound, delay time.Duration) {
 	// Perform the actual overlay
 	for i := 0; i < totalSize; i++ {
 		if i >= sSize {
-			zeroes := make([]Sample, s.Channels())
-			s.SetSamples(append(s.Samples(), zeroes))
+			s.SetSamples(append(s.Samples(), 0))
 		}
 		if i >= start && i < start+oSize {
-			for j, sample := range o.Samples()[i-start] {
-				s.Samples()[i][j] = clamp(s.Samples()[i][j] + sample)
-			}
+			sample := s.Samples()[i]
+			s.Samples()[i] = clamp(s.Samples()[i] + sample)
 		}
 	}
 }
 
 // Volume scales all the samples in a Sound.
 func Volume(s Sound, scale float64) {
-	for _, x := range s.Samples() {
-		for i, sample := range x {
-			x[i] = clamp(sample * Sample(scale))
-		}
+	sScale := Sample(scale)
+	for i, sample := range s.Samples() {
+		s.Samples()[i] = clamp(sample * sScale)
 	}
 }
 
@@ -118,23 +126,9 @@ func clamp(s Sample) Sample {
 	return s
 }
 
-func convPacket(packet []Sample, channels int) []Sample {
-	if len(packet) == channels {
-		return packet
-	} else if len(packet) > channels {
-		return packet[0:channels]
-	}
-	bigger := make([]Sample, channels)
-	copy(bigger, packet)
-	for i := len(packet); i < channels; i++ {
-		bigger[i] = bigger[0]
-	}
-	return bigger
-}
-
 func sampleIndex(s Sound, t time.Duration) int {
 	secs := float64(t) / float64(time.Second)
-	index := int(secs * float64(s.SampleRate()))
+	index := int(secs * float64(s.SampleRate()*s.Channels()))
 	if index < 0 {
 		return 0
 	} else if index > len(s.Samples()) {
