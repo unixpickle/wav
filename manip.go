@@ -43,15 +43,15 @@ func Gradient(s Sound, start, end time.Duration) {
 	if len(s.Samples()) == 0 {
 		return
 	}
-	upwards := (start < end)
 	startIdx := sampleIndex(s, start)
 	endIdx := sampleIndex(s, end)
+	upwards := (startIdx < endIdx)
 	if !upwards {
 		startIdx, endIdx = endIdx, startIdx
 	}
 	for i := startIdx; i < endIdx; i++ {
-		value := float64(i) / float64(endIdx-startIdx)
-		if upwards {
+		value := float64(i-startIdx) / float64(endIdx-startIdx)
+		if !upwards {
 			value = 1.0 - value
 		}
 		for j, sample := range s.Samples()[i] {
