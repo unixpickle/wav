@@ -31,10 +31,5 @@ func ErrMain() error {
 		value := wav.Sample(math.Sin(time * math.Pi * 2 * float64(freq)))
 		sound.SetSamples(append(sound.Samples(), []wav.Sample{value}))
 	}
-	f, err := os.Create(os.Args[2])
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	return sound.Write(f)
+	return sound.WriteFile(os.Args[2])
 }

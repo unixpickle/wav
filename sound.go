@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"io"
 	"os"
+	"time"
 )
 
 // Sound holds a list of PCM samples and a WAV header.
@@ -53,6 +54,11 @@ func ReadSound(path string) (*Sound, error) {
 		}
 	}
 	return &Sound{r.Header(), samples}, nil
+}
+
+// Duration returns the duration of the sound
+func (s *Sound) Duration() time.Duration {
+	return s.Header().Duration()
 }
 
 // Header returns the header for the sound.
@@ -116,4 +122,14 @@ func (s *Sound) Write(w io.Writer) error {
 		return ErrSampleSize
 	}
 	return nil
+}
+
+// WriteFile writes a WAV file (including its header) to a file.
+func (s *Sound) WriteFile(path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return s.Write(f)
 }
