@@ -12,7 +12,6 @@ import (
 type Sound interface {
 	Channels() int
 	Duration() time.Duration
-	Header() Header
 	SampleRate() int
 	Samples() [][]Sample
 	SetSamples([][]Sample)

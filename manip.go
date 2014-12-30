@@ -12,9 +12,8 @@ func Crop(s Sound, start time.Duration, end time.Duration) {
 	// Figure out sample indexes.
 	startSecs := float64(start) / float64(time.Second)
 	endSecs := float64(end) / float64(time.Second)
-	h := s.Header()
-	startIdx := int(startSecs * float64(h.Format.SampleRate))
-	endIdx := int(endSecs * float64(h.Format.SampleRate))
+	startIdx := int(startSecs * float64(s.SampleRate()))
+	endIdx := int(endSecs * float64(s.SampleRate()))
 
 	// Clamp indexes
 	if endIdx < startIdx {
