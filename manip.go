@@ -20,34 +20,44 @@ func Append(s1 Sound, sounds ...Sound) {
 // Crop isolates a time segment in a sound.
 func Crop(s Sound, start, end time.Duration) {
 	// Cannot crop an empty sound.
-	sampleCount := len(s.Samples())
-	if sampleCount == 0 {
+	if len(s.Samples()) == 0 {
 		return
 	}
 
 	// Figure out sample indexes.
-	startSecs := float64(start) / float64(time.Second)
-	endSecs := float64(end) / float64(time.Second)
-	startIdx := int(startSecs * float64(s.SampleRate()))
-	endIdx := int(endSecs * float64(s.SampleRate()))
+	startIdx := sampleIndex(s, start)
+	endIdx := sampleIndex(s, end)
 
 	// Clamp indexes
 	if endIdx < startIdx {
 		startIdx, endIdx = endIdx, startIdx
 	}
-	if startIdx < 0 {
-		startIdx = 0
-	} else if startIdx >= sampleCount {
-		startIdx = sampleCount - 1
-	}
-	if endIdx < 0 {
-		endIdx = 0
-	} else if endIdx > sampleCount {
-		endIdx = sampleCount
-	}
 
 	// Perform crop
 	s.SetSamples(s.Samples()[startIdx:endIdx])
+}
+
+// Gradient creates a linear fade-in gradient for an audio file.
+// The gradient will start at 0% volume at start and 100% volume at end.
+func Gradient(s Sound, start, end time.Duration) {
+	if len(s.Samples()) == 0 {
+		return
+	}
+	upwards := (start < end)
+	startIdx := sampleIndex(s, start)
+	endIdx := sampleIndex(s, end)
+	if !upwards {
+		startIdx, endIdx = endIdx, startIdx
+	}
+	for i := startIdx; i < endIdx; i++ {
+		value := float64(i) / float64(endIdx-startIdx)
+		if upwards {
+			value = 1.0 - value
+		}
+		for j, sample := range s.Samples()[i] {
+			s.Samples()[i][j] = sample * Sample(value)
+		}
+	}
 }
 
 func diffChannelAppend(s1, s2 Sound) {
@@ -66,4 +76,15 @@ func diffChannelAppend(s1, s2 Sound) {
 			s1.SetSamples(append(s1.Samples(), bigger))
 		}
 	}
+}
+
+func sampleIndex(s Sound, t time.Duration) int {
+	secs := float64(t) / float64(time.Second)
+	index := int(secs * float64(s.SampleRate()))
+	if index < 0 {
+		return 0
+	} else if index > len(s.Samples()) {
+		return len(s.Samples())
+	}
+	return index
 }
