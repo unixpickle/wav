@@ -33,10 +33,8 @@ func ErrMain() error {
 	if err != nil {
 		return err
 	}
-	newS2 := wav.NewPCM16Sound(s1.Channels(), s1.SampleRate())
-	wav.Convert(newS2, s2)
 	wav.Volume(s1, 0.5)
-	wav.Volume(newS2, 0.5)
-	wav.Overlay(s1, newS2, time.Duration(start*float64(time.Second)))
+	wav.Volume(s2, 0.5)
+	wav.Overlay(s1, s2, time.Duration(start*float64(time.Second)))
 	return wav.WriteFile(s1, os.Args[4])
 }

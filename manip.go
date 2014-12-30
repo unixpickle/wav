@@ -3,30 +3,22 @@ package wav
 import "time"
 
 // Append appends sounds to a sound.
-// If the various sounds have different numbers of channels, channels will be
-// added or removed as needed.
-// This works best if all the sounds have the same sample rate. Otherwise,
-// the result will have some faster and some slower parts.
-func Append(s1 Sound, sounds ...Sound) {
-	for _, s := range sounds {
-		if s.Channels() != s1.Channels() {
-			diffChannelAppend(s1, s)
+// This method adds and removes channels and modifies sample rates as needed.
+func Append(s Sound, sounds ...Sound) {
+	for _, x := range sounds {
+		if s.SampleRate() == x.SampleRate() && s.Channels() == x.Channels() {
+			// This is the simple, fast case
+			s.SetSamples(append(s.Samples(), x.Samples()...))
 			continue
 		}
-		s1.SetSamples(append(s1.Samples(), s.Samples()...))
-	}
-}
-
-// Convert converts a sound to meet another sound's parameters.
-// Both the channel count and the sample rate will be converted.
-// The converted source samples will be appended to the destination.
-func Convert(dest, source Sound) {
-	ratio := float64(dest.SampleRate()) / float64(source.SampleRate())
-	numSamples := int(ratio * float64(len(source.Samples())))
-	for i := 0; i < numSamples; i++ {
-		sourceSample := int(float64(i) / ratio)
-		newRes := diffChannel(source.Samples()[sourceSample], dest.Channels())
-		dest.SetSamples(append(dest.Samples(), newRes))
+		// Generic conversion algorithm.
+		ratio := float64(s.SampleRate()) / float64(x.SampleRate())
+		numSamples := int(ratio * float64(len(x.Samples())))
+		for i := 0; i < numSamples; i++ {
+			source := int(float64(i) / ratio)
+			newRes := convPacket(x.Samples()[source], s.Channels())
+			s.SetSamples(append(s.Samples(), newRes))
+		}
 	}
 }
 
@@ -51,7 +43,7 @@ func Crop(s Sound, start, end time.Duration) {
 }
 
 // Gradient creates a linear fade-in gradient for an audio file.
-// The gradient will start at 0% volume at start and 100% volume at end.
+// The voume is 0% at start and 100% at end.
 func Gradient(s Sound, start, end time.Duration) {
 	if len(s.Samples()) == 0 {
 		return
@@ -74,9 +66,18 @@ func Gradient(s Sound, start, end time.Duration) {
 }
 
 // Overlay overlays a sound over another sound at a certain offset.
-// If the sounds are a different number of channels, only some channels will
-// be overlayed.
+// The overlaying sound will be converted to match the destination's sample
+// rate and channel count.
 func Overlay(s, o Sound, delay time.Duration) {
+	// Convert the overlay if needed.
+	if o.Channels() != s.Channels() || o.SampleRate() != s.SampleRate() {
+		dest := NewPCM16Sound(s.Channels(), s.SampleRate())
+		Append(dest, o)
+		Overlay(s, dest, delay)
+		return
+	}
+
+	// Figure out the length of the new sound.
 	start := sampleIndex(s, delay)
 	sSize := len(s.Samples())
 	oSize := len(o.Samples())
@@ -84,14 +85,15 @@ func Overlay(s, o Sound, delay time.Duration) {
 	if start+oSize > totalSize {
 		totalSize = start + oSize
 	}
+
+	// Perform the actual overlay
 	for i := 0; i < totalSize; i++ {
 		if i >= sSize {
 			zeroes := make([]Sample, s.Channels())
 			s.SetSamples(append(s.Samples(), zeroes))
 		}
 		if i >= start && i < start+oSize {
-			add := diffChannel(o.Samples()[i-start], s.Channels())
-			for j, sample := range add {
+			for j, sample := range o.Samples()[i-start] {
 				s.Samples()[i][j] = clamp(s.Samples()[i][j] + sample)
 			}
 		}
@@ -116,7 +118,7 @@ func clamp(s Sample) Sample {
 	return s
 }
 
-func diffChannel(packet []Sample, channels int) []Sample {
+func convPacket(packet []Sample, channels int) []Sample {
 	if len(packet) == channels {
 		return packet
 	} else if len(packet) > channels {
@@ -128,13 +130,6 @@ func diffChannel(packet []Sample, channels int) []Sample {
 		bigger[i] = bigger[0]
 	}
 	return bigger
-}
-
-func diffChannelAppend(s1, s2 Sound) {
-	for _, x := range s2.Samples() {
-		fixed := diffChannel(x, s1.Channels())
-		s1.SetSamples(append(s1.Samples(), fixed))
-	}
 }
 
 func sampleIndex(s Sound, t time.Duration) int {
