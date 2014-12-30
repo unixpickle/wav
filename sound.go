@@ -7,15 +7,31 @@ import (
 	"time"
 )
 
-// Sound holds a list of PCM samples and a WAV header.
-type Sound struct {
-	header  Header
-	samples [][]Sample
+// Sound represents and abstract list of samples which can be encoded to a
+// file.
+type Sound interface {
+	Channels() int
+	Duration() time.Duration
+	Header() Header
+	SampleRate() int
+	Samples() [][]Sample
+	SetSamples([][]Sample)
+	Write(io.Writer) error
+}
+
+// WriteFile saves a sound to a file.
+func WriteFile(s Sound, path string) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	return s.Write(f)
 }
 
 // NewPCM8Sound creates a new empty Sound with given parameters.
-func NewPCM8Sound(channels int, sampleRate int) *Sound {
-	res := Sound{NewHeader(), [][]Sample{}}
+func NewPCM8Sound(channels int, sampleRate int) Sound {
+	res := wavSound8{wavSound{NewHeader(), [][]Sample{}}}
 	res.header.Format.BitsPerSample = 8
 	res.header.Format.BlockAlign = uint16(channels)
 	res.header.Format.ByteRate = uint32(sampleRate * channels)
@@ -25,8 +41,8 @@ func NewPCM8Sound(channels int, sampleRate int) *Sound {
 }
 
 // NewPCM16Sound creates a new empty Sound with given parameters.
-func NewPCM16Sound(channels int, sampleRate int) *Sound {
-	res := Sound{NewHeader(), [][]Sample{}}
+func NewPCM16Sound(channels int, sampleRate int) Sound {
+	res := wavSound16{wavSound{NewHeader(), [][]Sample{}}}
 	res.header.Format.BitsPerSample = 16
 	res.header.Format.BlockAlign = uint16(channels * 2)
 	res.header.Format.ByteRate = uint32(sampleRate * channels * 2)
@@ -36,7 +52,7 @@ func NewPCM16Sound(channels int, sampleRate int) *Sound {
 }
 
 // ReadSound reads a sound from a file.
-func ReadSound(path string) (*Sound, error) {
+func ReadSound(path string) (Sound, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
@@ -46,6 +62,10 @@ func ReadSound(path string) (*Sound, error) {
 	if err != nil {
 		return nil, err
 	}
+	if r.Header().Format.BitsPerSample != 8 &&
+		r.Header().Format.BitsPerSample != 16 {
+		return nil, ErrSampleSize
+	}
 	samples := make([][]Sample, r.Remaining())
 	for i := 0; i < len(samples); i++ {
 		samples[i], err = r.Read()
@@ -53,17 +73,27 @@ func ReadSound(path string) (*Sound, error) {
 			return nil, err
 		}
 	}
-	return &Sound{r.Header(), samples}, nil
+	if r.Header().Format.BitsPerSample == 8 {
+		return &wavSound8{wavSound{r.Header(), samples}}, nil
+	} else {
+		return &wavSound16{wavSound{r.Header(), samples}}, nil
+	}
 }
 
-// Duration returns the duration of the sound
-func (s *Sound) Duration() time.Duration {
+type wavSound struct {
+	header  Header
+	samples [][]Sample
+}
+
+func (s *wavSound) Channels() int {
+	return int(s.header.Format.NumChannels)
+}
+
+func (s *wavSound) Duration() time.Duration {
 	return s.Header().Duration()
 }
 
-// Header returns the header for the sound.
-// The header's size data will be modified to fit the sound's sample data.
-func (s *Sound) Header() Header {
+func (s *wavSound) Header() Header {
 	h := s.header
 	h.Data.Size = uint32(s.header.Format.BlockSize()) *
 		uint32(len(s.Samples()))
@@ -71,65 +101,56 @@ func (s *Sound) Header() Header {
 	return h
 }
 
-// NumChannels returns the number of channels in a sound.
-func (s *Sound) NumChannels() int {
-	return int(s.header.Format.NumChannels)
-}
-
-// SampleRate returns the number of samples per second per channel.
-func (s *Sound) SampleRate() int {
+func (s *wavSound) SampleRate() int {
 	return int(s.header.Format.SampleRate)
 }
 
-// Samples returns an array of arrays.
-// The inner arrays contain a single sample per channel.
-func (s *Sound) Samples() [][]Sample {
+func (s *wavSound) Samples() [][]Sample {
 	return s.samples
 }
 
-// SetSamples sets the sample data for the sound
-func (s *Sound) SetSamples(ss [][]Sample) {
+func (s *wavSound) SetSamples(ss [][]Sample) {
 	s.samples = ss
 }
 
-// Write writes a WAV file (including its header) to an io.Writer.
-func (s *Sound) Write(w io.Writer) error {
+type wavSound8 struct {
+	wavSound
+}
+
+func (s *wavSound8) Write(w io.Writer) error {
 	// Write the header
 	if err := binary.Write(w, binary.LittleEndian, s.Header()); err != nil {
 		return err
 	}
 	// Write the actual data
-	if s.header.Format.BitsPerSample == 8 {
-		for _, block := range s.Samples() {
-			for _, sample := range block {
-				data := []byte{byte(sample*0x80 + 0x80)}
-				if _, err := w.Write(data); err != nil {
-					return err
-				}
+	for _, block := range s.Samples() {
+		for _, sample := range block {
+			data := []byte{byte(sample*0x80 + 0x80)}
+			if _, err := w.Write(data); err != nil {
+				return err
 			}
 		}
-	} else if s.header.Format.BitsPerSample == 16 {
-		for _, block := range s.Samples() {
-			for _, sample := range block {
-				num := uint16(sample * 0x8000)
-				data := []byte{byte(num & 0xff), byte((num >> 8) & 0xff)}
-				if _, err := w.Write(data); err != nil {
-					return err
-				}
-			}
-		}
-	} else {
-		return ErrSampleSize
 	}
 	return nil
 }
 
-// WriteFile writes a WAV file (including its header) to a file.
-func (s *Sound) WriteFile(path string) error {
-	f, err := os.Create(path)
-	if err != nil {
+type wavSound16 struct {
+	wavSound
+}
+
+func (s *wavSound16) Write(w io.Writer) error {
+	// Write the header
+	if err := binary.Write(w, binary.LittleEndian, s.Header()); err != nil {
 		return err
 	}
-	defer f.Close()
-	return s.Write(f)
+	for _, block := range s.Samples() {
+		for _, sample := range block {
+			num := uint16(sample * 0x8000)
+			data := []byte{byte(num & 0xff), byte((num >> 8) & 0xff)}
+			if _, err := w.Write(data); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }

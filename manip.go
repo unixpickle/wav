@@ -2,7 +2,7 @@ package wav
 
 import "time"
 
-func Crop(s *Sound, start time.Duration, end time.Duration) {
+func Crop(s Sound, start time.Duration, end time.Duration) {
 	// Cannot crop an empty sound.
 	sampleCount := len(s.Samples())
 	if sampleCount == 0 {
@@ -27,8 +27,8 @@ func Crop(s *Sound, start time.Duration, end time.Duration) {
 	}
 	if endIdx < 0 {
 		endIdx = 0
-	} else if endIdx >= sampleCount {
-		endIdx = sampleCount - 1
+	} else if endIdx > sampleCount {
+		endIdx = sampleCount
 	}
 
 	// Perform crop

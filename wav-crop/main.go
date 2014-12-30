@@ -34,5 +34,5 @@ func ErrMain() error {
 	}
 	wav.Crop(s, time.Duration(start*float64(time.Second)),
 		time.Duration(end*float64(time.Second)))
-	return s.WriteFile(os.Args[4])
+	return wav.WriteFile(s, os.Args[4])
 }
