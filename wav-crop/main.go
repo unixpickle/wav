@@ -18,7 +18,8 @@ func main() {
 
 func ErrMain() error {
 	if len(os.Args) != 5 {
-		return errors.New("Usage: wav-crop <file.wav> <start> <end> <output.wav>")
+		return errors.New("Usage: wav-crop <file.wav> <start> <end> " +
+			"<output.wav>")
 	}
 	s, err := wav.ReadSound(os.Args[1])
 	if err != nil {

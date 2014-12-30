@@ -17,6 +17,19 @@ func Append(s1 Sound, sounds ...Sound) {
 	}
 }
 
+// Convert converts a sound to meet another sound's parameters.
+// Both the channel count and the sample rate will be converted.
+// The converted source samples will be appended to the destination.
+func Convert(dest, source Sound) {
+	ratio := float64(dest.SampleRate()) / float64(source.SampleRate())
+	numSamples := int(ratio * float64(len(source.Samples())))
+	for i := 0; i < numSamples; i++ {
+		sourceSample := int(float64(i) / ratio)
+		newRes := diffChannel(source.Samples()[sourceSample], dest.Channels())
+		dest.SetSamples(append(dest.Samples(), newRes))
+	}
+}
+
 // Crop isolates a time segment in a sound.
 func Crop(s Sound, start, end time.Duration) {
 	// Cannot crop an empty sound.
@@ -77,36 +90,50 @@ func Overlay(s, o Sound, delay time.Duration) {
 			s.SetSamples(append(s.Samples(), zeroes))
 		}
 		if i >= start && i < start+oSize {
-			overlaySample := make([]Sample, s.Channels())
-			copy(overlaySample, o.Samples()[i-start])
-			for j, sample := range overlaySample {
-				newVal := s.Samples()[i][j] + sample
-				if newVal < -1.0 {
-					newVal = -1.0
-				} else if newVal > 1.0 {
-					newVal = 1.0
-				}
-				s.Samples()[i][j] = newVal
+			add := diffChannel(o.Samples()[i-start], s.Channels())
+			for j, sample := range add {
+				s.Samples()[i][j] = clamp(s.Samples()[i][j] + sample)
 			}
 		}
 	}
 }
 
+// Volume scales all the samples in a Sound.
+func Volume(s Sound, scale float64) {
+	for _, x := range s.Samples() {
+		for i, sample := range x {
+			x[i] = clamp(sample * Sample(scale))
+		}
+	}
+}
+
+func clamp(s Sample) Sample {
+	if s < -1.0 {
+		return -1
+	} else if s > 1.0 {
+		return 1
+	}
+	return s
+}
+
+func diffChannel(packet []Sample, channels int) []Sample {
+	if len(packet) == channels {
+		return packet
+	} else if len(packet) > channels {
+		return packet[0:channels]
+	}
+	bigger := make([]Sample, channels)
+	copy(bigger, packet)
+	for i := len(packet); i < channels; i++ {
+		bigger[i] = bigger[0]
+	}
+	return bigger
+}
+
 func diffChannelAppend(s1, s2 Sound) {
-	if s2.Channels() > s1.Channels() {
-		for _, x := range s2.Samples() {
-			cut := x[0:s1.Channels()]
-			s1.SetSamples(append(s1.Samples(), cut))
-		}
-	} else {
-		for _, x := range s2.Samples() {
-			bigger := make([]Sample, s1.Channels())
-			copy(bigger, x)
-			for i := len(x); i < len(bigger); i++ {
-				bigger[i] = bigger[0]
-			}
-			s1.SetSamples(append(s1.Samples(), bigger))
-		}
+	for _, x := range s2.Samples() {
+		fixed := diffChannel(x, s1.Channels())
+		s1.SetSamples(append(s1.Samples(), fixed))
 	}
 }
 
