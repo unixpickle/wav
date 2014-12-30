@@ -70,15 +70,15 @@ func (s *Sound) NumChannels() int {
 	return int(s.header.Format.NumChannels)
 }
 
+// SampleRate returns the number of samples per second per channel.
+func (s *Sound) SampleRate() int {
+	return int(s.header.Format.SampleRate)
+}
+
 // Samples returns an array of arrays.
 // The inner arrays contain a single sample per channel.
 func (s *Sound) Samples() [][]Sample {
 	return s.samples
-}
-
-// SampleRate returns the number of samples per second per channel.
-func (s *Sound) SampleRate() int {
-	return int(s.header.Format.SampleRate)
 }
 
 // SetSamples sets the sample data for the sound
