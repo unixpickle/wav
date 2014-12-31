@@ -33,6 +33,13 @@ func Append(dest Sound, sounds ...Sound) {
 	}
 }
 
+// AppendSilence appends a certain amount of silence to a Sound.
+func AppendSilence(s Sound, t time.Duration) {
+	count := unclippedSampleIndex(s, t)
+	list := make([]Sample, count)
+	s.SetSamples(append(s.Samples(), list...))
+}
+
 // Crop isolates a time segment in a sound.
 func Crop(s Sound, start, end time.Duration) {
 	// Cannot crop an empty sound.
@@ -136,7 +143,7 @@ func sampleIndex(s Sound, t time.Duration) int {
 
 func unclippedSampleIndex(s Sound, t time.Duration) int {
 	secs := float64(t) / float64(time.Second)
-	index := int(secs * float64(s.SampleRate())) * s.Channels()
+	index := int(secs*float64(s.SampleRate())) * s.Channels()
 	if index < 0 {
 		return 0
 	}
