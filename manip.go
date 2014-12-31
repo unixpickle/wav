@@ -136,7 +136,7 @@ func sampleIndex(s Sound, t time.Duration) int {
 
 func unclippedSampleIndex(s Sound, t time.Duration) int {
 	secs := float64(t) / float64(time.Second)
-	index := int(secs * float64(s.SampleRate()*s.Channels()))
+	index := int(secs * float64(s.SampleRate())) * s.Channels()
 	if index < 0 {
 		return 0
 	}
