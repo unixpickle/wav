@@ -41,23 +41,23 @@ func AppendSilence(s Sound, t time.Duration) {
 }
 
 // Crop isolates a time segment in a sound.
+// If the end time is past the sound's duration, it will
+// be clamped to the end of the sound.
 func Crop(s Sound, start, end time.Duration) {
-	// Cannot crop an empty sound.
 	if len(s.Samples()) == 0 {
 		return
 	}
 
-	// Figure out sample indexes.
 	startIdx := sampleIndex(s, start)
 	endIdx := sampleIndex(s, end)
 
-	// Clamp indexes
 	if endIdx < startIdx {
 		startIdx, endIdx = endIdx, startIdx
 	}
 
-	// Perform crop
-	s.SetSamples(s.Samples()[startIdx:endIdx])
+	samps := make([]Sample, endIdx-startIdx)
+	copy(samps, s.Samples()[startIdx:endIdx])
+	s.SetSamples(samps)
 }
 
 // Gradient creates a linear fade-in gradient for an audio file.
