@@ -1,9 +1,6 @@
 package wav
 
-import (
-	"encoding/binary"
-	"io"
-)
+import "io"
 
 type Sample float64
 
@@ -51,8 +48,8 @@ func (r pcm8Reader) Read(out []Sample) (int, error) {
 	}
 
 	// Decode the list of raw samples
-	raw := make([]uint8, toRead)
-	if err := binary.Read(r.input, binary.LittleEndian, raw); err != nil {
+	raw := make([]byte, toRead)
+	if _, err := io.ReadFull(r.input, raw); err != nil {
 		return 0, err
 	}
 	for i, x := range raw {
@@ -82,12 +79,13 @@ func (r pcm16Reader) Read(out []Sample) (int, error) {
 	}
 
 	// Decode the list of raw samples
-	raw := make([]int16, toRead)
-	if err := binary.Read(r.input, binary.LittleEndian, raw); err != nil {
+	raw := make([]byte, toRead*2)
+	if _, err := io.ReadFull(r.input, raw); err != nil {
 		return 0, err
 	}
-	for i, x := range raw {
-		out[i] = Sample(x) / 0x8000
+	for i := 0; i < len(raw); i += 2 {
+		sample := int16(uint16(raw[i]) | (uint16(raw[i+1]) << 8))
+		out[i>>1] = Sample(sample) / 0x8000
 	}
 
 	// Return the amount read and a possible ErrDone error.
